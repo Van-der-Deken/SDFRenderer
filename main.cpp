@@ -5,15 +5,20 @@
 #include "classes/ShaderProgram.h"
 #include "glm/ext.hpp"
 #include "classes/GLBuffer.h"
+#include "classes/Font.h"
 
 ShaderProgram object;
 GLBuffer points, sdf;
+Font times;
+FT_Library ftLib;
 std::string path;
 uint32_t sdfSize;
 std::ifstream sdfFile;
 glm::mat4 frustrum, view;
 glm::vec3 eye(0.0f, 0.0f, 1.0f), direction(0.0f, 0.0f, -1.0f), position(0.0f), scaleFactor(1.0f);
 GLfloat radius = 5.f, alpha = 0.f, beta = 0.f, redAlpha = 0.0f;
+GLuint typeSize = 16;
+bool showLegend = true;
 
 void checkError(const std::string &header)
 {
@@ -25,6 +30,25 @@ void setMatrices(ShaderProgram &program, glm::mat4 model, glm::mat4 view)
 {
     glm::mat4 modelView = view * model;
     program.bindUniformMatrix(SP_MAT4, "MVP", glm::value_ptr(frustrum * modelView), GL_FALSE);
+}
+
+void drawLegend()
+{
+    GLuint strHeight = typeSize + 2;
+    glm::vec3 color(1.0f, 1.0f, 1.0f);
+    times.setColor(color);
+    times.setScale(1.0f);
+    times(5, strHeight).render("Model: ").render(path);
+    times(5, 2 * strHeight).render("Rotate camera up: ").render("'w'").render(" Rotate camera down: ").render("'s'");
+    times(5, 3 * strHeight).render("Rotate camera left: ").render("'a'").render(" Rotate camera right: ").render("'d'");
+    times(5, 4 * strHeight).render("Camera zoom +: ").render("'q'").render(" Camera zoom -: ").render("'e'");
+    times(5, 5 * strHeight).render("Move x -: ").render("'4'").render(" Move x +: ").render("'6'");
+    times(5, 6 * strHeight).render("Move z -: ").render("'8'").render(" Move z +: ").render("'2'");
+    times(5, 7 * strHeight).render("Move y -: ").render("'7'").render(" Move y +: ").render("'9'");
+    times(5, 8 * strHeight).render("Scale -: ").render("'1'").render(" Scale +: ").render("'3'");
+    times(5, 9 * strHeight).render("Move z -: ").render("'8'").render(" Move z +: ").render("'2'");
+    times(5, 10 * strHeight).render("Show/Hide points with positive distance: ").render("'5'");
+    times(5, 11 * strHeight).render("Show/Hide legend: ").render("'0'");
 }
 
 void renderPoints()
@@ -39,9 +63,8 @@ void renderPoints()
     points.bind();
     object.bindAttributeData("SDF", 1, GL_FLOAT, GL_FALSE, 0, 0);
     object.bindUniform("Alpha", redAlpha);
-    checkError("Error before glDrawArrays");
     glDrawArrays(GL_POINTS, 0, sdfSize / 4);
-    checkError("Error after glDrawArrays");
+    object.unuse();
 }
 
 void setPath()
@@ -84,6 +107,11 @@ void loadSDF()
         std::cout << "Fragment shader not loaded\n";
     if(!object.link())
         std::cout << "Object:Error during linking\n";
+
+    if (FT_Init_FreeType(&ftLib))
+        std::cout << "Could not init FreeType Library" << std::endl;
+    times.load(ftLib, "fonts\\times.ttf", 0, typeSize, 0);
+    times.loadProgram();
 }
 
 void resizeWindow(int width, int height)
@@ -98,12 +126,15 @@ void resizeWindow(int width, int height)
                                          sin(glm::radians(alpha)),
                                          -(cos(glm::radians(beta))) * cos(glm::radians(alpha))));
     view = glm::lookAt(eye, eye + direction, glm::vec3(0.0f, 1.0f, 0.0f));
+    times.setOrthoMatrix(0, width, 0, height);
 }
 
 void render()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     renderPoints();
+    if(showLegend)
+        drawLegend();
     glutSwapBuffers();
 }
 
@@ -156,6 +187,9 @@ void keyboard(unsigned char key, int x, int y)
         case '5':
             redAlpha = redAlpha == 0.0f ? 0.7f : 0.0f;
             break;
+        case '0':
+            showLegend = !showLegend;
+            break;
         default:
             std::cout << key << std::endl;
     }
@@ -191,5 +225,6 @@ int main(int argc, char **argv) {
     glutDisplayFunc(render);
     glutKeyboardFunc(keyboard);
     glutMainLoop();
+    FT_Done_FreeType(ftLib);
     return 0;
 }
